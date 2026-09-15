@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { MaintenanceReportData, MaintenanceItem, SubWoEntry } from '../types';
 import { getLocationByCode } from '../data/mtrLocations';
+import { getFixedStationQty, isColumnCompletedWithWo } from '../data/stationTemplates';
 
 /**
  * Clean string helper
@@ -124,7 +125,8 @@ export function generateStationWorksheetData(reportData: MaintenanceReportData):
 
       subs.forEach((sub, subIdx) => {
         const isFirstSub = subIdx === 0;
-        const qtyNum = isFirstSub && item.qty ? Number(item.qty) || 1 : '';
+        const fixedQty = getFixedStationQty(item.station || reportData.depotCode, item.workDescription, item.qty);
+        const qtyNum = isFirstSub ? Number(fixedQty) || 1 : '';
         if (isFirstSub && typeof qtyNum === 'number') {
           totalQty += qtyNum;
         }
@@ -170,20 +172,31 @@ export function generateStationWorksheetData(reportData: MaintenanceReportData):
   }
 
   // Summary Row (TOTAL)
+  // User requirement: "COLUMN M OVERALL TOTAL, 不用預設100%, 有工單號, 有100%, overall total 才有100%."
+  const hasWoAnd100M = isColumnCompletedWithWo(reportData.items, 'm');
+  const hasWoAnd100M2 = isColumnCompletedWithWo(reportData.items, 'm2');
+  const hasWoAnd100M3 = isColumnCompletedWithWo(reportData.items, 'm3');
+  const hasWoAnd100M4 = isColumnCompletedWithWo(reportData.items, 'm4');
+  const hasWoAnd100M6 = isColumnCompletedWithWo(reportData.items, 'm6');
+  const hasWoAnd100Y = isColumnCompletedWithWo(reportData.items, 'y');
+  const hasWoAnd100M18 = isColumnCompletedWithWo(reportData.items, 'm18');
+  const hasWoAnd100Y2 = isColumnCompletedWithWo(reportData.items, 'y2');
+  const hasWoAnd100Y3 = isColumnCompletedWithWo(reportData.items, 'y3');
+
   rows.push([
     'TOTAL',
     '',
     '',
-    totalQty > 0 ? totalQty : clean(reportData.overallTotals?.qtyTotal),
-    totalM > 0 || (reportData.items && reportData.items.length > 0) ? '100%' : clean(reportData.overallTotals?.mTotal),
-    totalM2 > 0 ? '100%' : clean(reportData.overallTotals?.m2Total),
-    totalM3 > 0 ? '100%' : clean(reportData.overallTotals?.m3Total),
-    totalM4 > 0 ? '100%' : clean(reportData.overallTotals?.m4Total),
-    totalM6 > 0 ? '100%' : clean(reportData.overallTotals?.m6Total),
-    totalY > 0 ? '100%' : clean(reportData.overallTotals?.yTotal),
-    totalM18 > 0 ? '100%' : clean(reportData.overallTotals?.m18Total),
-    totalY2 > 0 ? '100%' : clean(reportData.overallTotals?.y2Total),
-    totalY3 > 0 ? '100%' : clean(reportData.overallTotals?.y3Total),
+    totalQty > 0 ? totalQty : '',
+    hasWoAnd100M ? '100%' : '',
+    hasWoAnd100M2 ? '100%' : '',
+    hasWoAnd100M3 ? '100%' : '',
+    hasWoAnd100M4 ? '100%' : '',
+    hasWoAnd100M6 ? '100%' : '',
+    hasWoAnd100Y ? '100%' : '',
+    hasWoAnd100M18 ? '100%' : '',
+    hasWoAnd100Y2 ? '100%' : '',
+    hasWoAnd100Y3 ? '100%' : '',
   ]);
 
   rows.push([]); // Space row

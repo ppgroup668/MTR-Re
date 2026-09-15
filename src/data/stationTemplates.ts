@@ -296,8 +296,8 @@ export function createStandardStationReport(
     items,
     overallTotals: {
       pmWoTotal: '',
-      qtyTotal: totalQty > 0 ? String(totalQty) : '',
-      mTotal: items.length > 0 ? '100%' : '',
+      qtyTotal: '',
+      mTotal: '', // User requirement: COLUMN M OVERALL TOTAL 不用預設100%
       m2Total: '',
       m3Total: '',
       m4Total: '',
@@ -318,4 +318,135 @@ export function createStandardStationReport(
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Checks if a specific frequency column has at least one item or sub-entry
+ * that has BOTH a PM Work Order number (有工單號) AND 100% (有100%).
+ * User requirement: "COLUMN M OVERALL TOTAL, 不用預設100%, 有工單號, 有100%, overall total 才有100%."
+ */
+export function isColumnCompletedWithWo(
+  items: MaintenanceItem[] = [],
+  colKey: 'm' | 'm2' | 'm3' | 'm4' | 'm6' | 'y' | 'm18' | 'y2' | 'y3'
+): boolean {
+  if (!items || !Array.isArray(items)) return false;
+  return items.some((item) => {
+    // Check main item
+    const mainWo = (item.pmWo || '').trim();
+    const mainVal = ((item as any)[colKey] || '').trim();
+    if (mainWo !== '' && (mainVal === '100%' || mainVal.includes('100%'))) {
+      return true;
+    }
+    // Check sub-entries
+    if (item.subEntries && Array.isArray(item.subEntries)) {
+      return item.subEntries.some((sub) => {
+        const subWo = (sub.pmWo || '').trim();
+        const subVal = ((sub as any)[colKey] || '').trim();
+        return subWo !== '' && (subVal === '100%' || subVal.includes('100%'));
+      });
+    }
+    return false;
+  });
+}
+
+/**
+ * Returns the fixed standard QTY from the official contract template (PDF).
+ * "跟據PDF 套用QTY數字, QTY數字已定, 全何情況不變"
+ */
+export function getFixedStationQty(
+  stationCode: string,
+  workDescription: string,
+  fallbackQty?: string
+): string {
+  const code = (stationCode || '').toUpperCase().trim();
+  const template = STATION_STANDARD_TEMPLATES[code];
+  if (!template || !template.items || template.items.length === 0) {
+    return fallbackQty || '1';
+  }
+
+  const clean = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = clean(workDescription || '');
+
+  // 1. Exact normalized match
+  const matched = template.items.find((it) => clean(it.workDescription) === target);
+  if (matched) return matched.qty;
+
+  // 2. Partial/fuzzy match
+  const partial = template.items.find((it) => {
+    const itClean = clean(it.workDescription);
+    return itClean.includes(target) || target.includes(itClean);
+  });
+  if (partial) return partial.qty;
+
+  return fallbackQty || '1';
+}
+
+/**
+ * Enforces standard station items structure with fixed QTY from PDF under all circumstances.
+ * "跟據PDF 套用QTY數字, QTY數字已定, 全何情況不變"
+ */
+export function enforceStationStandardItems(
+  stationCode: string,
+  existingItems: MaintenanceItem[] = []
+): MaintenanceItem[] {
+  const code = (stationCode || '').toUpperCase().trim();
+  const template = STATION_STANDARD_TEMPLATES[code];
+  if (!template || !template.items) {
+    return existingItems;
+  }
+
+  const clean = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  return template.items.map((std, idx) => {
+    const stdClean = clean(std.workDescription);
+    const matchedExisting =
+      existingItems.find((ex) => clean(ex.workDescription) === stdClean) ||
+      existingItems.find((ex) => {
+        const exClean = clean(ex.workDescription);
+        return exClean.includes(stdClean) || stdClean.includes(exClean);
+      }) ||
+      existingItems[idx];
+
+    if (matchedExisting) {
+      return {
+        ...matchedExisting,
+        id: matchedExisting.id || `item-${code}-${idx + 1}`,
+        station: code,
+        workDescription: std.workDescription,
+        qty: std.qty, // Fixed QTY from PDF under all circumstances!
+      };
+    }
+
+    return {
+      id: `item-${code}-${idx + 1}-${Date.now()}`,
+      station: code,
+      workDescription: std.workDescription,
+      pmWo: '',
+      qty: std.qty, // Fixed QTY from PDF!
+      m: '',
+      m2: '',
+      m3: '',
+      m4: '',
+      m6: '',
+      y: '',
+      m18: '',
+      y2: '',
+      y3: '',
+      subEntries: [
+        {
+          id: `sub-${code}-${idx + 1}-0`,
+          pmWo: '',
+          m: '',
+          m2: '',
+          m3: '',
+          m4: '',
+          m6: '',
+          y: '',
+          m18: '',
+          y2: '',
+          y3: '',
+        },
+      ],
+    };
+  });
 }

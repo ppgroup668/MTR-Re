@@ -4,6 +4,7 @@ import { Plus, Trash2, PenTool, Calendar as CalendarIcon } from 'lucide-react';
 import { formatWorkDescriptionNeat } from '../utils/excelHelper';
 import { DatePickerPopover, normalizeToStandardDate } from './DatePickerPopover';
 import { EditableText, EditingContext } from './EditableText';
+import { getFixedStationQty, isColumnCompletedWithWo } from '../data/stationTemplates';
 
 interface Props {
   reportData: MaintenanceReportData;
@@ -400,27 +401,35 @@ export const ReportPDFPreview: React.FC<Props> = ({
     return groups;
   }, [items, reportData.depotCode]);
 
-  // Overall Total row helpers: ensure percentage format (100%) and never counts like 1, 2, 3...
-  const getDisplayOverallTotal = (val: string | undefined, hasColItems: boolean) => {
-    const trimmed = (val || '').trim();
-    if (!trimmed) {
-      return hasColItems ? '100%' : '';
-    }
-    // If it's a numeric count like "1", "2", "3", or contains numbers, strictly return "100%"
-    if (/^\d+(\.\d+)?%?$/.test(trimmed)) {
+  // User instruction:
+  // "COLUMN M OVERALL TOTAL, 不用預設100%, 有工單號, 有100%, overall total 才有100%."
+  // Overall total for Column M (and other frequency columns):
+  // Only when there is at least one item or sub-item with a work order number (有工單號) AND 100% (有100%),
+  // only then overall total has 100%. Otherwise it must remain completely empty ("")!
+  const hasWoAnd100M = isColumnCompletedWithWo(items, 'm');
+  const hasWoAnd100M3 = isColumnCompletedWithWo(items, 'm3');
+  const hasWoAnd100M4 = isColumnCompletedWithWo(items, 'm4');
+  const hasWoAnd100M6 = isColumnCompletedWithWo(items, 'm6');
+  const hasWoAnd100Y = isColumnCompletedWithWo(items, 'y');
+  const hasWoAnd100M18 = isColumnCompletedWithWo(items, 'm18');
+  const hasWoAnd100Y2 = isColumnCompletedWithWo(items, 'y2');
+  const hasWoAnd100Y3 = isColumnCompletedWithWo(items, 'y3');
+
+  const getDisplayOverallTotal = (
+    manualVal: string | undefined,
+    hasQualifiedWoAnd100: boolean
+  ) => {
+    // Only when there is a work order number AND 100%, overall total has 100%
+    if (hasQualifiedWoAnd100) {
       return '100%';
     }
-    return trimmed.includes('%') ? trimmed : '100%';
+    // Do NOT default to 100%
+    const trimmed = (manualVal || '').trim();
+    if (trimmed === '100%') {
+      return '';
+    }
+    return trimmed;
   };
-
-  const hasM = items.some((i) => (i.m || '').trim() !== '') || ((reportData.overallTotals?.mTotal || '').trim() !== '');
-  const hasM3 = items.some((i) => (i.m3 || '').trim() !== '') || ((reportData.overallTotals?.m3Total || '').trim() !== '');
-  const hasM4 = items.some((i) => (i.m4 || '').trim() !== '') || ((reportData.overallTotals?.m4Total || '').trim() !== '');
-  const hasM6 = items.some((i) => (i.m6 || '').trim() !== '') || ((reportData.overallTotals?.m6Total || '').trim() !== '');
-  const hasY = items.some((i) => (i.y || '').trim() !== '') || ((reportData.overallTotals?.yTotal || '').trim() !== '');
-  const hasM18 = items.some((i) => (i.m18 || '').trim() !== '') || ((reportData.overallTotals?.m18Total || '').trim() !== '');
-  const hasY2 = items.some((i) => (i.y2 || '').trim() !== '') || ((reportData.overallTotals?.y2Total || '').trim() !== '');
-  const hasY3 = items.some((i) => (i.y3 || '').trim() !== '') || ((reportData.overallTotals?.y3Total || '').trim() !== '');
 
   return (
     <EditingContext.Provider value={isEditingEnabled}>
@@ -648,13 +657,13 @@ export const ReportPDFPreview: React.FC<Props> = ({
                             />
                           </td>
 
-                          {/* QTY: QTY=1 on every row */}
+                          {/* QTY: Fixed standard QTY according to official PDF */}
                           <td
                             style={{ ...borderStyle, ...cellPaddingStyle, width: colQty }}
                             className="text-center align-middle font-sans"
                           >
                             <EditableText
-                              value={item.qty || '1'}
+                              value={getFixedStationQty(stnGroup.station || reportData.depotCode, item.workDescription, item.qty)}
                               onChange={(val) => handleItemChange(item.id, 'qty', val)}
                               className="text-center font-normal"
                             />
@@ -778,7 +787,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.mTotal, hasM)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.mTotal, hasWoAnd100M)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -791,7 +800,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.m3Total, hasM3)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.m3Total, hasWoAnd100M3)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -804,7 +813,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.m4Total, hasM4)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.m4Total, hasWoAnd100M4)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -817,7 +826,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.m6Total, hasM6)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.m6Total, hasWoAnd100M6)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -830,7 +839,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.yTotal, hasY)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.yTotal, hasWoAnd100Y)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -843,7 +852,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.m18Total, hasM18)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.m18Total, hasWoAnd100M18)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -856,7 +865,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.y2Total, hasY2)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.y2Total, hasWoAnd100Y2)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({
@@ -869,7 +878,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                 </td>
                 <td style={{ ...borderStyle, ...cellPaddingStyle, width: colFreq }} className="text-center align-middle font-bold whitespace-nowrap px-0.5">
                   <EditableText
-                    value={getDisplayOverallTotal(reportData.overallTotals.y3Total, hasY3)}
+                    value={getDisplayOverallTotal(reportData.overallTotals.y3Total, hasWoAnd100Y3)}
                     onChange={(val) => {
                       const cleanVal = /^\d+$/.test(val.trim()) ? '100%' : val;
                       onUpdateReportData({

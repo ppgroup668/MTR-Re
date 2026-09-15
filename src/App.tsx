@@ -12,6 +12,9 @@ import {
 import {
   createStandardStationReport,
   STATION_STANDARD_TEMPLATES,
+  getFixedStationQty,
+  enforceStationStandardItems,
+  isColumnCompletedWithWo,
 } from './data/stationTemplates';
 import {
   ALL_MTR_LOCATIONS,
@@ -81,13 +84,14 @@ export default function App() {
     });
 
     if (filteredItems.length !== report.items.length) {
+      const enforced = enforceStationStandardItems(report.depotCode, filteredItems);
       return {
         ...report,
-        items: filteredItems,
+        items: enforced,
         overallTotals: {
           ...report.overallTotals,
-          qtyTotal: String(filteredItems.length),
-          mTotal: filteredItems.length > 0 ? '100%' : '',
+          qtyTotal: '',
+          mTotal: isColumnCompletedWithWo(enforced, 'm') ? '100%' : '',
         },
       };
     }
@@ -113,23 +117,32 @@ export default function App() {
         const code = loc.code;
         if (parsedMap[code] && Array.isArray(parsedMap[code].items) && parsedMap[code].items.length > 0) {
           const rep = parsedMap[code];
-          const hasItems = rep.items.length > 0;
-          const isCount = (v: any) => typeof v === 'string' && /^\d+$/.test(v.trim());
+          // User requirement: "跟據PDF 套用QTY數字, QTY數字已定, 全何情況不變"
+          const enforcedItems = enforceStationStandardItems(code, rep.items);
+          // User requirement: "COLUMN M OVERALL TOTAL, 不用預設100%, 有工單號, 有100%, overall total 才有100%."
+          const hasWoAnd100M = isColumnCompletedWithWo(enforcedItems, 'm');
+          const hasWoAnd100M3 = isColumnCompletedWithWo(enforcedItems, 'm3');
+          const hasWoAnd100M4 = isColumnCompletedWithWo(enforcedItems, 'm4');
+          const hasWoAnd100M6 = isColumnCompletedWithWo(enforcedItems, 'm6');
+          const hasWoAnd100Y = isColumnCompletedWithWo(enforcedItems, 'y');
+          const hasWoAnd100M18 = isColumnCompletedWithWo(enforcedItems, 'm18');
+          const hasWoAnd100Y2 = isColumnCompletedWithWo(enforcedItems, 'y2');
+          const hasWoAnd100Y3 = isColumnCompletedWithWo(enforcedItems, 'y3');
+
           result[code] = {
             ...rep,
+            items: enforcedItems,
             overallTotals: {
               ...rep.overallTotals,
-              mTotal:
-                isCount(rep.overallTotals?.mTotal) || (!rep.overallTotals?.mTotal && hasItems)
-                  ? '100%'
-                  : rep.overallTotals?.mTotal || (hasItems ? '100%' : ''),
-              m3Total: isCount(rep.overallTotals?.m3Total) ? '100%' : rep.overallTotals?.m3Total || '',
-              m4Total: isCount(rep.overallTotals?.m4Total) ? '100%' : rep.overallTotals?.m4Total || '',
-              m6Total: isCount(rep.overallTotals?.m6Total) ? '100%' : rep.overallTotals?.m6Total || '',
-              yTotal: isCount(rep.overallTotals?.yTotal) ? '100%' : rep.overallTotals?.yTotal || '',
-              m18Total: isCount(rep.overallTotals?.m18Total) ? '100%' : rep.overallTotals?.m18Total || '',
-              y2Total: isCount(rep.overallTotals?.y2Total) ? '100%' : rep.overallTotals?.y2Total || '',
-              y3Total: isCount(rep.overallTotals?.y3Total) ? '100%' : rep.overallTotals?.y3Total || '',
+              qtyTotal: '',
+              mTotal: hasWoAnd100M ? '100%' : '',
+              m3Total: hasWoAnd100M3 ? '100%' : '',
+              m4Total: hasWoAnd100M4 ? '100%' : '',
+              m6Total: hasWoAnd100M6 ? '100%' : '',
+              yTotal: hasWoAnd100Y ? '100%' : '',
+              m18Total: hasWoAnd100M18 ? '100%' : '',
+              y2Total: hasWoAnd100Y2 ? '100%' : '',
+              y3Total: hasWoAnd100Y3 ? '100%' : '',
             },
           };
         } else if (STATION_STANDARD_TEMPLATES[code]) {
@@ -440,15 +453,17 @@ export default function App() {
   ) => {
     const targetCode = (parsedData.detectedLocation || parsedData.depotCode || currentDepot).toUpperCase();
 
-    // Ensure all items strictly respect user's rules:
-    // QTY = '1', Station = targetCode
+    // User requirement: "跟據PDF 套用QTY數字, QTY數字已定, 全何情況不變"
     const finalItems: MaintenanceItem[] = Array.isArray(parsedData.items)
-      ? (parsedData.items as MaintenanceItem[]).map((it, idx) => ({
-          ...it,
-          id: it.id || `item-${idx + 1}`,
-          station: it.station || targetCode,
-          qty: '1', // QTY=1 forever
-        }))
+      ? enforceStationStandardItems(
+          targetCode,
+          (parsedData.items as MaintenanceItem[]).map((it, idx) => ({
+            ...it,
+            id: it.id || `item-${idx + 1}`,
+            station: it.station || targetCode,
+            qty: getFixedStationQty(targetCode, it.workDescription, it.qty),
+          }))
+        )
       : [];
 
     // 1. Identify all station codes that actually exist in the uploaded Excel
@@ -503,12 +518,25 @@ export default function App() {
         Object.entries(parsedData.reportsByStationMap).forEach(([stnCode, stnReport]: [string, any]) => {
           if (!stnReport || !stnReport.items || stnReport.items.length === 0) return;
           const curr = nextMap[stnCode] || createEmptyReport(stnCode);
-          const stnItems: MaintenanceItem[] = (stnReport.items as MaintenanceItem[]).map((it, idx) => ({
-            ...it,
-            id: it.id || `item-${stnCode}-${idx + 1}`,
-            station: stnCode,
-            qty: '1',
-          }));
+          const stnItems: MaintenanceItem[] = enforceStationStandardItems(
+            stnCode,
+            (stnReport.items as MaintenanceItem[]).map((it, idx) => ({
+              ...it,
+              id: it.id || `item-${stnCode}-${idx + 1}`,
+              station: stnCode,
+              qty: getFixedStationQty(stnCode, it.workDescription, it.qty),
+            }))
+          );
+          // User requirement: "COLUMN M OVERALL TOTAL, 不用預設100%, 有工單號, 有100%, overall total 才有100%."
+          const hasWoAnd100M = isColumnCompletedWithWo(stnItems, 'm');
+          const hasWoAnd100M3 = isColumnCompletedWithWo(stnItems, 'm3');
+          const hasWoAnd100M4 = isColumnCompletedWithWo(stnItems, 'm4');
+          const hasWoAnd100M6 = isColumnCompletedWithWo(stnItems, 'm6');
+          const hasWoAnd100Y = isColumnCompletedWithWo(stnItems, 'y');
+          const hasWoAnd100M18 = isColumnCompletedWithWo(stnItems, 'm18');
+          const hasWoAnd100Y2 = isColumnCompletedWithWo(stnItems, 'y2');
+          const hasWoAnd100Y3 = isColumnCompletedWithWo(stnItems, 'y3');
+
           nextMap[stnCode] = {
             ...curr,
             ...stnReport,
@@ -517,6 +545,19 @@ export default function App() {
             reportMonthYear: stnReport.reportMonthYear || parsedData.reportMonthYear || 'September - 2026',
             contractNo: stnReport.contractNo || 'M1202-19E',
             items: stnItems,
+            overallTotals: {
+              ...curr.overallTotals,
+              ...stnReport.overallTotals,
+              qtyTotal: '',
+              mTotal: hasWoAnd100M ? '100%' : '',
+              m3Total: hasWoAnd100M3 ? '100%' : '',
+              m4Total: hasWoAnd100M4 ? '100%' : '',
+              m6Total: hasWoAnd100M6 ? '100%' : '',
+              yTotal: hasWoAnd100Y ? '100%' : '',
+              m18Total: hasWoAnd100M18 ? '100%' : '',
+              y2Total: hasWoAnd100Y2 ? '100%' : '',
+              y3Total: hasWoAnd100Y3 ? '100%' : '',
+            },
             updatedAt: new Date().toISOString(),
           };
         });
@@ -525,6 +566,15 @@ export default function App() {
       // If single station targetCode is specified and not ALL, also ensure it has the items
       if (targetCode !== 'ALL' && finalItems.length > 0) {
         const curr = nextMap[targetCode] || createEmptyReport(targetCode);
+        const hasWoAnd100M = isColumnCompletedWithWo(finalItems, 'm');
+        const hasWoAnd100M3 = isColumnCompletedWithWo(finalItems, 'm3');
+        const hasWoAnd100M4 = isColumnCompletedWithWo(finalItems, 'm4');
+        const hasWoAnd100M6 = isColumnCompletedWithWo(finalItems, 'm6');
+        const hasWoAnd100Y = isColumnCompletedWithWo(finalItems, 'y');
+        const hasWoAnd100M18 = isColumnCompletedWithWo(finalItems, 'm18');
+        const hasWoAnd100Y2 = isColumnCompletedWithWo(finalItems, 'y2');
+        const hasWoAnd100Y3 = isColumnCompletedWithWo(finalItems, 'y3');
+
         nextMap[targetCode] = {
           ...curr,
           ...parsedData,
@@ -533,6 +583,19 @@ export default function App() {
           reportMonthYear: parsedData.reportMonthYear || curr.reportMonthYear || 'September - 2026',
           contractNo: parsedData.contractNo || 'M1202-19E',
           items: finalItems,
+          overallTotals: {
+            ...curr.overallTotals,
+            ...parsedData.overallTotals,
+            qtyTotal: '',
+            mTotal: hasWoAnd100M ? '100%' : '',
+            m3Total: hasWoAnd100M3 ? '100%' : '',
+            m4Total: hasWoAnd100M4 ? '100%' : '',
+            m6Total: hasWoAnd100M6 ? '100%' : '',
+            yTotal: hasWoAnd100Y ? '100%' : '',
+            m18Total: hasWoAnd100M18 ? '100%' : '',
+            y2Total: hasWoAnd100Y2 ? '100%' : '',
+            y3Total: hasWoAnd100Y3 ? '100%' : '',
+          },
           updatedAt: new Date().toISOString(),
         };
       }

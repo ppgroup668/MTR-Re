@@ -5,6 +5,9 @@ import { ALL_MTR_LOCATIONS, getLocationTitle, getLocationByCode } from '../data/
 import {
   STATION_STANDARD_TEMPLATES,
   StationStandardItem,
+  getFixedStationQty,
+  enforceStationStandardItems,
+  isColumnCompletedWithWo,
 } from '../data/stationTemplates';
 
 export const STANDARD_MTR_ITEMS = [
@@ -2010,35 +2013,37 @@ export function parseGenericTableRows(
   // Build reportsByStationMap for ALL stations discovered in the file and all 17 default stations!
   const reportsByStationMap: Record<string, Partial<MaintenanceReportData>> = {};
   Object.entries(stationItemsMap).forEach(([stn, stnItems]) => {
-    const qtySum = stnItems.reduce((acc, it) => acc + (parseInt(it.qty || '0', 10) || 0), 0);
-    const hasAnyM = stnItems.some((i) => i.m && i.m.trim() !== '');
-    const hasAnyM2 = stnItems.some((i) => i.m2 && i.m2.trim() !== '');
-    const hasAnyM3 = stnItems.some((i) => i.m3 && i.m3.trim() !== '');
-    const hasAnyM4 = stnItems.some((i) => i.m4 && i.m4.trim() !== '');
-    const hasAnyM6 = stnItems.some((i) => i.m6 && i.m6.trim() !== '');
-    const hasAnyY = stnItems.some((i) => i.y && i.y.trim() !== '');
-    const hasAnyM18 = stnItems.some((i) => i.m18 && i.m18.trim() !== '');
-    const hasAnyY2 = stnItems.some((i) => i.y2 && i.y2.trim() !== '');
-    const hasAnyY3 = stnItems.some((i) => i.y3 && i.y3.trim() !== '');
+    // User requirement: "跟據PDF 套用QTY數字, QTY數字已定, 全何情況不變"
+    const enforcedItems = enforceStationStandardItems(stn, stnItems);
+    // User requirement: "COLUMN M OVERALL TOTAL, 不用預設100%, 有工單號, 有100%, overall total 才有100%."
+    const hasWoAnd100M = isColumnCompletedWithWo(enforcedItems, 'm');
+    const hasWoAnd100M2 = isColumnCompletedWithWo(enforcedItems, 'm2');
+    const hasWoAnd100M3 = isColumnCompletedWithWo(enforcedItems, 'm3');
+    const hasWoAnd100M4 = isColumnCompletedWithWo(enforcedItems, 'm4');
+    const hasWoAnd100M6 = isColumnCompletedWithWo(enforcedItems, 'm6');
+    const hasWoAnd100Y = isColumnCompletedWithWo(enforcedItems, 'y');
+    const hasWoAnd100M18 = isColumnCompletedWithWo(enforcedItems, 'm18');
+    const hasWoAnd100Y2 = isColumnCompletedWithWo(enforcedItems, 'y2');
+    const hasWoAnd100Y3 = isColumnCompletedWithWo(enforcedItems, 'y3');
 
     reportsByStationMap[stn] = {
       depotCode: stn,
       depotTitle: getLocationTitle(stn),
       reportMonthYear: globalReportMonthYear || 'September - 2026',
       contractNo: globalContractNo,
-      items: stnItems,
+      items: enforcedItems,
       overallTotals: {
         pmWoTotal: '',
-        qtyTotal: qtySum > 0 ? String(qtySum) : '',
-        mTotal: hasAnyM ? '100%' : '',
-        m2Total: hasAnyM2 ? '100%' : '',
-        m3Total: hasAnyM3 ? '100%' : '',
-        m4Total: hasAnyM4 ? '100%' : '',
-        m6Total: hasAnyM6 ? '100%' : '',
-        yTotal: hasAnyY ? '100%' : '',
-        m18Total: hasAnyM18 ? '100%' : '',
-        y2Total: hasAnyY2 ? '100%' : '',
-        y3Total: hasAnyY3 ? '100%' : '',
+        qtyTotal: '',
+        mTotal: hasWoAnd100M ? '100%' : '',
+        m2Total: hasWoAnd100M2 ? '100%' : '',
+        m3Total: hasWoAnd100M3 ? '100%' : '',
+        m4Total: hasWoAnd100M4 ? '100%' : '',
+        m6Total: hasWoAnd100M6 ? '100%' : '',
+        yTotal: hasWoAnd100Y ? '100%' : '',
+        m18Total: hasWoAnd100M18 ? '100%' : '',
+        y2Total: hasWoAnd100Y2 ? '100%' : '',
+        y3Total: hasWoAnd100Y3 ? '100%' : '',
       },
       signatories: {
         preparedByName: globalPreparedByName,
@@ -2051,8 +2056,8 @@ export function parseGenericTableRows(
     };
   });
 
-  const primaryItems = stationItemsMap[targetStation] || [];
-  const primaryQtySum = primaryItems.reduce((acc, it) => acc + (parseInt(it.qty || '0', 10) || 0), 0);
+  const rawPrimaryItems = stationItemsMap[targetStation] || [];
+  const primaryItems = enforceStationStandardItems(targetStation, rawPrimaryItems);
   const primaryReport = reportsByStationMap[targetStation] || {
     depotCode: targetStation,
     depotTitle: getLocationTitle(targetStation),
@@ -2061,16 +2066,16 @@ export function parseGenericTableRows(
     items: primaryItems,
     overallTotals: {
       pmWoTotal: '',
-      qtyTotal: primaryQtySum > 0 ? String(primaryQtySum) : '',
-      mTotal: primaryItems.some((i) => i.m && i.m.trim() !== '') ? '100%' : '',
-      m2Total: primaryItems.some((i) => i.m2 && i.m2.trim() !== '') ? '100%' : '',
-      m3Total: primaryItems.some((i) => i.m3 && i.m3.trim() !== '') ? '100%' : '',
-      m4Total: primaryItems.some((i) => i.m4 && i.m4.trim() !== '') ? '100%' : '',
-      m6Total: primaryItems.some((i) => i.m6 && i.m6.trim() !== '') ? '100%' : '',
-      yTotal: primaryItems.some((i) => i.y && i.y.trim() !== '') ? '100%' : '',
-      m18Total: primaryItems.some((i) => i.m18 && i.m18.trim() !== '') ? '100%' : '',
-      y2Total: primaryItems.some((i) => i.y2 && i.y2.trim() !== '') ? '100%' : '',
-      y3Total: primaryItems.some((i) => i.y3 && i.y3.trim() !== '') ? '100%' : '',
+      qtyTotal: '',
+      mTotal: isColumnCompletedWithWo(primaryItems, 'm') ? '100%' : '',
+      m2Total: isColumnCompletedWithWo(primaryItems, 'm2') ? '100%' : '',
+      m3Total: isColumnCompletedWithWo(primaryItems, 'm3') ? '100%' : '',
+      m4Total: isColumnCompletedWithWo(primaryItems, 'm4') ? '100%' : '',
+      m6Total: isColumnCompletedWithWo(primaryItems, 'm6') ? '100%' : '',
+      yTotal: isColumnCompletedWithWo(primaryItems, 'y') ? '100%' : '',
+      m18Total: isColumnCompletedWithWo(primaryItems, 'm18') ? '100%' : '',
+      y2Total: isColumnCompletedWithWo(primaryItems, 'y2') ? '100%' : '',
+      y3Total: isColumnCompletedWithWo(primaryItems, 'y3') ? '100%' : '',
     },
     signatories: {
       preparedByName: globalPreparedByName,
