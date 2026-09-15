@@ -517,6 +517,29 @@ function rawMatchStandardWorkDescription(rawText: string): string {
     return 'Sea Water Intake Screen';
   }
 
+  // Travelling Band Screen Sea Water Pump
+  if (
+    (text.includes('TRAVELLING') || text.includes('TRAVELING') || text.includes('BAND SCREEN') || /\bTBS\b/.test(text)) &&
+    (text.includes('PUMP') || text.includes('SWP') || text.includes('TBSP'))
+  ) {
+    return 'Travelling Band Screen Sea Water Pump';
+  }
+
+  // Travelling Band Screen
+  if (
+    (text.includes('TRAVELLING BAND SCREEN') ||
+      text.includes('TRAVELING BAND SCREEN') ||
+      text.includes('BAND SCREEN') ||
+      text.includes('ECS-TBS') ||
+      text.includes('-TBS-') ||
+      text.endsWith('-TBS') ||
+      /\bTBS\b/.test(text)) &&
+    !text.includes('PUMP') &&
+    !text.includes('SWP')
+  ) {
+    return 'Travelling Band Screen';
+  }
+
   // Electro-thermal linked fire damper (ETD) -> User rule: thermal linked fire damper
   if (
     text.includes('ELECTRO-THERMAL') ||
@@ -1172,12 +1195,19 @@ export function findMatchingStandardItem(
   }
 
   // B. Universal Plate Heat Exchanger (PHE) Matching for ALL stations (KIC, TSY, HOK, NIC, TIC, etc.)
+  // CRITICAL USER REQUIREMENT: Plate Heat Exchanger (PHE-001, PHE-002, etc.) is COMPLETELY DIFFERENT
+  // from Travelling Band Screen -001, Travelling Band Screen -002, and Travelling Band Screen Sea Water Pump-001/002!
+  // Under NO circumstance should PHE ever match Travelling Band Screen, nor vice-versa!
   const isPheQuery =
-    combinedText.includes('PLATE HEAT') ||
-    combinedText.includes('HEAT EXCHANGER') ||
-    combinedText.includes('PHE') ||
-    normalizedAsset.includes('PHE') ||
-    normalizedExcelDesc.includes('PHE');
+    (combinedText.includes('PLATE HEAT') ||
+      combinedText.includes('HEAT EXCHANGER') ||
+      combinedText.includes('PHE') ||
+      normalizedAsset.includes('PHE') ||
+      normalizedExcelDesc.includes('PHE')) &&
+    !combinedText.includes('TRAVELLING') &&
+    !combinedText.includes('TRAVELING') &&
+    !combinedText.includes('BAND SCREEN') &&
+    !/\bTBS\b/i.test(combinedText);
 
   if (isPheQuery) {
     // 1. Check for HOK B2 pattern: e.g. PHE-B2/01 or B2/02 or B2-01
@@ -1186,6 +1216,10 @@ export function findMatchingStandardItem(
       const b2Num = parseInt(b2Match[1], 10);
       for (let i = 0; i < template.items.length; i++) {
         const std = template.items[i];
+        const stdUpper = std.workDescription.toUpperCase();
+        if (!stdUpper.includes('PHE') && !stdUpper.includes('PLATE HEAT') && !stdUpper.includes('HEAT EXCHANGER')) {
+          continue;
+        }
         const stdB2 = std.workDescription.match(/B2[/-](\d+)/i);
         if (stdB2 && parseInt(stdB2[1], 10) === b2Num) {
           return { matchedIndex: i, matchedItem: std };
@@ -1199,16 +1233,30 @@ export function findMatchingStandardItem(
       combinedText.match(/PHE[_\-\s]*0*(\d+)\b/i) ||
       combinedText.match(/(?:^|[^A-Z0-9])PHE[_\-\s]*(\d+)/i) ||
       (normalizedAsset.includes('PHE') && normalizedAsset.match(/[-_]0*([1-9]\d*)\b/i)) ||
-      (normalizedAsset.includes('PHE') && normalizedAsset.match(/[-_](\d{2,4})\b/i));
+      (normalizedAsset.includes('PHE') && normalizedAsset.match(/[-_](\d{2,4})\b/i)) ||
+      (normalizedExcelDesc.includes('PHE') && normalizedExcelDesc.match(/[-_]0*([1-9]\d*)\b/i));
 
     if (pheNumMatch) {
       const targetPheNum = parseInt(pheNumMatch[1], 10);
       for (let i = 0; i < template.items.length; i++) {
         const std = template.items[i];
+        const stdUpper = std.workDescription.toUpperCase();
+        // MANDATORY: std.workDescription MUST be a Plate Heat Exchanger!
+        // Under NO circumstance match Travelling Band Screen, Sea Water Pump, or other equipment!
+        if (
+          (!stdUpper.includes('PHE') && !stdUpper.includes('PLATE HEAT') && !stdUpper.includes('HEAT EXCHANGER')) ||
+          stdUpper.includes('TRAVELLING') ||
+          stdUpper.includes('BAND SCREEN') ||
+          stdUpper.includes('PUMP')
+        ) {
+          continue;
+        }
+
         const stdPheMatch =
-          std.workDescription.match(/PHE[_\-\s]*0*(\d+)/i) ||
-          std.workDescription.match(/[-_]0*(\d+)/i) ||
-          std.workDescription.match(/\(0*(\d+)\)/i);
+          stdUpper.match(/PHE[_\-\s]*0*(\d+)/i) ||
+          stdUpper.match(/\(PHE[_\-\s]*0*(\d+)\)/i) ||
+          stdUpper.match(/[-_]0*(\d+)/i) ||
+          stdUpper.match(/\(0*(\d+)\)/i);
         if (stdPheMatch) {
           const stdNum = parseInt(stdPheMatch[1], 10);
           if (stdNum === targetPheNum) {
@@ -1221,13 +1269,93 @@ export function findMatchingStandardItem(
     // 3. Fallback: If no unit number is found, and template only has ONE PHE item
     const pheItems = template.items
       .map((it, idx) => ({ it, idx }))
-      .filter(
-        ({ it }) =>
-          it.workDescription.toUpperCase().includes('PLATE HEAT') ||
-          it.workDescription.toUpperCase().includes('PHE')
-      );
+      .filter(({ it }) => {
+        const up = it.workDescription.toUpperCase();
+        return (
+          (up.includes('PLATE HEAT') || up.includes('PHE')) &&
+          !up.includes('TRAVELLING') &&
+          !up.includes('BAND SCREEN') &&
+          !up.includes('PUMP')
+        );
+      });
     if (pheItems.length === 1) {
       return { matchedIndex: pheItems[0].idx, matchedItem: pheItems[0].it };
+    }
+  }
+
+  // C. Universal Travelling Band Screen (TBS) & Pump Matching (KIC, CHT, TSY, etc.)
+  // Critical User Requirement: Distinguish Travelling Band Screen -001, Travelling Band Screen -002,
+  // Travelling Band Screen Sea Water Pump-001, Travelling Band Screen Sea Water Pump-002,
+  // and Plate Heat Exchanger (PHE-001/002).
+  const isTbsQuery =
+    (combinedText.includes('TRAVELLING BAND SCREEN') ||
+      combinedText.includes('TRAVELING BAND SCREEN') ||
+      combinedText.includes('BAND SCREEN') ||
+      /\bTBS\b/i.test(combinedText)) &&
+    !combinedText.includes('PLATE HEAT') &&
+    !combinedText.includes('HEAT EXCHANGER') &&
+    !/\bPHE\b/i.test(combinedText);
+
+  if (isTbsQuery) {
+    const isPumpQuery =
+      combinedText.includes('PUMP') ||
+      combinedText.includes('SWP') ||
+      combinedText.includes('TBSP') ||
+      combinedText.includes('TBSSWP');
+
+    // Extract unit number from query (e.g. -001, -002, 001, 002, NO:1, NO:2, 1, 2)
+    const tbsNumMatch =
+      combinedText.match(/TBS[_\-\s]*P?[_\-\s]*0*(\d+)\b/i) ||
+      combinedText.match(/(?:NO:?|NO\.?|-)\s*0*([1-9]\d*)/i) ||
+      combinedText.match(/\(0*([1-9]\d*)\)/i) ||
+      combinedText.match(/[-_]0*([1-9]\d*)\b/);
+    const targetTbsNum = tbsNumMatch ? parseInt(tbsNumMatch[1], 10) : null;
+
+    if (isPumpQuery) {
+      // Look for Travelling Band Screen Sea Water Pump with matching unit number
+      for (let i = 0; i < template.items.length; i++) {
+        const std = template.items[i];
+        const stdUpper = std.workDescription.toUpperCase();
+        if (
+          (stdUpper.includes('TRAVELLING') || stdUpper.includes('BAND SCREEN')) &&
+          (stdUpper.includes('PUMP') || stdUpper.includes('SWP'))
+        ) {
+          if (targetTbsNum !== null) {
+            const stdNumMatch =
+              stdUpper.match(/[-_]0*([1-9]\d*)\b/) ||
+              stdUpper.match(/0*([1-9]\d*)\b/);
+            if (stdNumMatch && parseInt(stdNumMatch[1], 10) === targetTbsNum) {
+              return { matchedIndex: i, matchedItem: std };
+            }
+          } else {
+            return { matchedIndex: i, matchedItem: std };
+          }
+        }
+      }
+    } else {
+      // Look for Travelling Band Screen (the screen itself, NOT pump) with matching unit number
+      for (let i = 0; i < template.items.length; i++) {
+        const std = template.items[i];
+        const stdUpper = std.workDescription.toUpperCase();
+        if (
+          (stdUpper.includes('TRAVELLING') || stdUpper.includes('BAND SCREEN')) &&
+          !stdUpper.includes('PUMP') &&
+          !stdUpper.includes('SWP')
+        ) {
+          if (targetTbsNum !== null) {
+            const stdNumMatch =
+              stdUpper.match(/(?:NO:?|NO\.?|-)\s*0*([1-9]\d*)/i) ||
+              stdUpper.match(/[-_]0*([1-9]\d*)\b/) ||
+              stdUpper.match(/\(0*([1-9]\d*)\)/i) ||
+              stdUpper.match(/0*([1-9]\d*)\b/);
+            if (stdNumMatch && parseInt(stdNumMatch[1], 10) === targetTbsNum) {
+              return { matchedIndex: i, matchedItem: std };
+            }
+          } else {
+            return { matchedIndex: i, matchedItem: std };
+          }
+        }
+      }
     }
   }
 
@@ -1373,9 +1501,22 @@ export function findMatchingStandardItem(
       return { matchedIndex: i, matchedItem: std };
     }
 
-    // Travelling Band Screen
-    if (stdDescUpper.includes('TRAVELLING BAND SCREEN') && combinedText.includes('TRAVELLING BAND SCREEN')) {
-      return { matchedIndex: i, matchedItem: std };
+    // Travelling Band Screen & Travelling Band Screen Sea Water Pump
+    if (stdDescUpper.includes('TRAVELLING BAND SCREEN') || stdDescUpper.includes('TRAVELING BAND SCREEN')) {
+      const isStdPump = stdDescUpper.includes('PUMP') || stdDescUpper.includes('SWP');
+      const isQueryPump = combinedText.includes('PUMP') || combinedText.includes('SWP') || combinedText.includes('TBSP');
+      if (
+        isStdPump === isQueryPump &&
+        !combinedText.includes('PLATE HEAT') &&
+        !combinedText.includes('HEAT EXCHANGER') &&
+        !/\bPHE\b/i.test(combinedText)
+      ) {
+        const stdNum = stdDescUpper.match(/0*([1-9]\d*)\b/) || stdDescUpper.match(/(?:NO:?|NO\.?|-)\s*0*([1-9]\d*)/i);
+        const qNum = combinedText.match(/0*([1-9]\d*)\b/) || combinedText.match(/(?:NO:?|NO\.?|-)\s*0*([1-9]\d*)/i);
+        if (!stdNum || !qNum || stdNum[1] === qNum[1]) {
+          return { matchedIndex: i, matchedItem: std };
+        }
+      }
     }
 
     // Auto Backwash Strainer
@@ -1429,9 +1570,19 @@ export function findMatchingStandardItem(
     }
 
     // Plate Heat Exchanger (only unnumbered items; numbered PHEs are already matched in section 2)
-    if (stdDescUpper.includes('PLATE HEAT EXCHANGER') || stdDescUpper.includes('PHE')) {
+    if (
+      (stdDescUpper.includes('PLATE HEAT EXCHANGER') || stdDescUpper.includes('PHE')) &&
+      !stdDescUpper.includes('TRAVELLING') &&
+      !stdDescUpper.includes('BAND SCREEN') &&
+      !stdDescUpper.includes('PUMP')
+    ) {
       const isNumbered = /PHE[_\-\s/]*\d+/i.test(std.workDescription) || /[-_]0*\d+/i.test(std.workDescription);
-      if (!isNumbered && (combinedText.includes('PLATE HEAT') || combinedText.includes('HEAT EXCHANGER') || combinedText.includes('PHE'))) {
+      if (
+        !isNumbered &&
+        (combinedText.includes('PLATE HEAT') || combinedText.includes('HEAT EXCHANGER') || combinedText.includes('PHE')) &&
+        !combinedText.includes('TRAVELLING') &&
+        !combinedText.includes('BAND SCREEN')
+      ) {
         return { matchedIndex: i, matchedItem: std };
       }
     }
@@ -1440,6 +1591,22 @@ export function findMatchingStandardItem(
   // 4. Substring inclusion fallback
   for (let i = 0; i < template.items.length; i++) {
     const std = template.items[i];
+    const stdUpper = std.workDescription.toUpperCase();
+    const isStdPhe = stdUpper.includes('PHE') || stdUpper.includes('PLATE HEAT') || stdUpper.includes('HEAT EXCHANGER');
+    const isStdTbs = (stdUpper.includes('TRAVELLING') || stdUpper.includes('BAND SCREEN')) && !stdUpper.includes('PUMP');
+    const isStdTbsPump = (stdUpper.includes('TRAVELLING') || stdUpper.includes('BAND SCREEN')) && stdUpper.includes('PUMP');
+
+    // Never cross-match between PHE, TBS screen, and TBS pump in fallback
+    if (isStdPhe && (combinedText.includes('TRAVELLING') || combinedText.includes('BAND SCREEN') || /\bTBS\b/i.test(combinedText))) {
+      continue;
+    }
+    if (isStdTbs && (combinedText.includes('PLATE HEAT') || combinedText.includes('HEAT EXCHANGER') || /\bPHE\b/i.test(combinedText) || combinedText.includes('PUMP'))) {
+      continue;
+    }
+    if (isStdTbsPump && (combinedText.includes('PLATE HEAT') || combinedText.includes('HEAT EXCHANGER') || /\bPHE\b/i.test(combinedText) || !combinedText.includes('PUMP'))) {
+      continue;
+    }
+
     const cleanedStd = cleanStr(std.workDescription);
     if (cleanedStd.length >= 6 && (cleanedCombined.includes(cleanedStd) || cleanedStd.includes(cleanedExcelDesc))) {
       return { matchedIndex: i, matchedItem: std };

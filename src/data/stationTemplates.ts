@@ -399,13 +399,53 @@ export function enforceStationStandardItems(
 
   return template.items.map((std, idx) => {
     const stdClean = clean(std.workDescription);
+    const stdUpper = std.workDescription.toUpperCase();
+    const isStdPhe = stdUpper.includes('PHE') || stdUpper.includes('PLATE HEAT') || stdUpper.includes('HEAT EXCHANGER');
+    const isStdTbs = (stdUpper.includes('TRAVELLING') || stdUpper.includes('BAND SCREEN')) && !stdUpper.includes('PUMP') && !stdUpper.includes('SWP');
+    const isStdTbsPump = (stdUpper.includes('TRAVELLING') || stdUpper.includes('BAND SCREEN')) && (stdUpper.includes('PUMP') || stdUpper.includes('SWP'));
+
+    // Extract unit number from standard item if present
+    const stdNumMatch = stdUpper.match(/0*([1-9]\d*)\b/) || stdUpper.match(/(?:NO:?|NO\.?|-)\s*0*([1-9]\d*)/i);
+    const stdNum = stdNumMatch ? stdNumMatch[1] : null;
+
     const matchedExisting =
+      // 1. Exact clean match
       existingItems.find((ex) => clean(ex.workDescription) === stdClean) ||
+      // 2. Same index IF workDescription matches
+      (existingItems[idx] && clean(existingItems[idx].workDescription) === stdClean ? existingItems[idx] : undefined) ||
+      // 3. Precise equipment match preventing cross-contamination
       existingItems.find((ex) => {
         const exClean = clean(ex.workDescription);
-        return exClean.includes(stdClean) || stdClean.includes(exClean);
-      }) ||
-      existingItems[idx];
+        const exUpper = (ex.workDescription || '').toUpperCase();
+        const isExPhe = exUpper.includes('PHE') || exUpper.includes('PLATE HEAT') || exUpper.includes('HEAT EXCHANGER');
+        const isExTbs = (exUpper.includes('TRAVELLING') || exUpper.includes('BAND SCREEN')) && !exUpper.includes('PUMP') && !exUpper.includes('SWP');
+        const isExTbsPump = (exUpper.includes('TRAVELLING') || exUpper.includes('BAND SCREEN')) && (exUpper.includes('PUMP') || exUpper.includes('SWP'));
+
+        // CRITICAL: Strict barrier between Plate Heat Exchanger, Travelling Band Screen, and TBS Pump!
+        if (isStdPhe && (isExTbs || isExTbsPump || exUpper.includes('TRAVELLING') || exUpper.includes('SCREEN') || exUpper.includes('PUMP'))) {
+          return false;
+        }
+        if (isStdTbs && (isExPhe || isExTbsPump || exUpper.includes('PUMP') || exUpper.includes('HEAT') || exUpper.includes('PHE'))) {
+          return false;
+        }
+        if (isStdTbsPump && (isExPhe || isExTbs || exUpper.includes('HEAT') || exUpper.includes('PHE') || !exUpper.includes('PUMP'))) {
+          return false;
+        }
+
+        // If unit numbers exist, they MUST match
+        if (stdNum) {
+          const exNumMatch = exUpper.match(/0*([1-9]\d*)\b/) || exUpper.match(/(?:NO:?|NO\.?|-)\s*0*([1-9]\d*)/i);
+          const exNum = exNumMatch ? exNumMatch[1] : null;
+          if (exNum && exNum !== stdNum) {
+            return false;
+          }
+        }
+
+        return (
+          (exClean.length >= 6 && stdClean.includes(exClean)) ||
+          (stdClean.length >= 6 && exClean.includes(stdClean))
+        );
+      });
 
     if (matchedExisting) {
       return {
