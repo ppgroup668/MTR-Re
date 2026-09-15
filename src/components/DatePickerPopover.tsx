@@ -228,7 +228,7 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   return (
     <div
       ref={popoverRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs sm:absolute sm:inset-auto sm:z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs sm:absolute sm:inset-auto sm:z-50 no-print"
       style={{
         // On desktop, can float relative to trigger or center
       }}

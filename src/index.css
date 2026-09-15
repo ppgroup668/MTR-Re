@@ -45,7 +45,7 @@ textarea::-webkit-scrollbar {
     /* Configure printable page */
     @page {
       size: A4 landscape;
-      margin: 5mm;
+      margin: 4mm 6mm;
     }
 
     body, html {
@@ -69,9 +69,36 @@ textarea::-webkit-scrollbar {
       overflow: visible !important;
     }
 
-    /* Center and format report canvas - Strictly fit 1 page A4 landscape (height: 198mm) */
-    #pdf-report-canvas,
-    .station-pdf-page,
+    /* 
+     * Pagination & 1-Page Layout Architecture:
+     * - Only .station-pdf-page manages page breaks between stations in multi-station mode.
+     * - The inner .report-paper-sheet NEVER causes page breaks and fits on 1 page.
+     * - Single station / last station page has NO trailing page break.
+     */
+    .station-pdf-page {
+      box-shadow: none !important;
+      border: none !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      height: auto !important;
+      min-height: 0 !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: always !important;
+      break-after: page !important;
+    }
+
+    .station-pdf-page:last-child,
+    .station-pdf-page:last-of-type,
+    #pdf-report-canvas {
+      page-break-after: avoid !important;
+      break-after: auto !important;
+    }
+
     .report-paper-sheet {
       box-shadow: none !important;
       border: none !important;
@@ -83,17 +110,29 @@ textarea::-webkit-scrollbar {
       margin: 0 auto !important;
       padding: 2mm 3mm !important;
       background: #ffffff !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
-      page-break-after: always !important;
-      break-after: page !important;
+      page-break-before: avoid !important;
+      break-before: auto !important;
+      page-break-after: avoid !important;
+      break-after: auto !important;
     }
 
-    .station-pdf-page:last-child,
-    #pdf-report-canvas:last-child,
-    .report-paper-sheet:last-child {
-      page-break-after: auto !important;
-      break-after: auto !important;
+    table, tr, tbody, thead {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    /* Hide all placeholders during print - clean official document */
+    ::placeholder,
+    input::placeholder,
+    textarea::placeholder {
+      color: transparent !important;
+      opacity: 0 !important;
+      -webkit-text-fill-color: transparent !important;
     }
 
     /* Off-screen batch container only for programmatic PDF export if needed */

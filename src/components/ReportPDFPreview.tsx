@@ -245,7 +245,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
     fontFamily: 'Arial, sans-serif',
     boxSizing: 'border-box',
     width: '100%',
-    minHeight: '210mm',
+    minHeight: 'auto',
   };
 
   const headerStyle: React.CSSProperties = {
@@ -433,7 +433,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
 
   return (
     <EditingContext.Provider value={isEditingEnabled}>
-      <div className="w-full flex justify-center bg-slate-100 p-2 sm:p-4 overflow-x-auto print:p-0 print:m-0 print:overflow-visible print:overflow-x-visible print:overflow-y-visible print:bg-white">
+      <div className="w-full flex justify-center bg-slate-100 p-2 sm:p-4 overflow-x-auto print:p-0 print:m-0 print:overflow-visible print:overflow-x-visible print:overflow-y-visible print:bg-white print:block">
         {/* Paper Container matching screenshot proportions */}
         <div
           id={containerId || `pdf-paper-${reportData.depotCode}`}
@@ -653,7 +653,7 @@ export const ReportPDFPreview: React.FC<Props> = ({
                               value={sub.pmWo}
                               onChange={(val) => handleSubEntryChange(item.id, subIndex, 'pmWo', val)}
                               className="text-center font-mono text-[11px] tabular-nums"
-                              placeholder="工單號"
+                              placeholder=""
                             />
                           </td>
 
