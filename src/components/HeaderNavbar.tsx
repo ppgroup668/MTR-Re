@@ -89,24 +89,13 @@ export const HeaderNavbar: React.FC<Props> = ({
             <button
               type="button"
               onClick={onPrintClick}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg border border-slate-300 transition-colors cursor-pointer shadow-2xs"
               title="開啟列印對話框直接「另存為 PDF」(一站一頁，100% 清晰)"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden sm:inline">列印 / 另存 PDF</span>
+              <Printer className="w-4 h-4 text-slate-700" />
+              <span>列印 / 另存 PDF</span>
             </button>
           )}
-
-          {/* Core Button: Download PDF */}
-          <button
-            type="button"
-            onClick={onExportPdfClick}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-xs transition-colors cursor-pointer"
-            title="下載目前站點 A4 PDF 報告 (包含完整簽名、自動縮成1站1頁)"
-          >
-            <Download className="w-4 h-4" />
-            <span>下載 PDF</span>
-          </button>
 
           {/* More Options Dropdown (Cleanly collapses secondary utility features) */}
           <div className="relative" ref={menuRef}>

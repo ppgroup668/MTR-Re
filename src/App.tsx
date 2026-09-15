@@ -1039,60 +1039,35 @@ export default function App() {
                   全線共 {stationsWithData.length} 個站點有工單資料 (共 {stationsToRender.length} 頁)
                 </span>
               )}
-
-              <span className="text-slate-300">‧</span>
-
-              <button
-                type="button"
-                onClick={handleOpenUploadModal}
-                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="上傳港鐵保養清單 Excel 檔案 (自動識別與全站分流)"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
-                <span>上傳 Excel</span>
-              </button>
             </div>
           </div>
 
-          {/* Right: Multi-Station Export, Reset, Fine-Tune Toggle & Meta info */}
+          {/* Right: Step 1, Step 2, Fine-Tune Toggle & Meta info */}
           <div className="flex items-center gap-2">
             <span className="hidden xl:inline text-xs text-slate-500 font-mono mr-1">
               {reportData.reportMonthYear}
             </span>
 
-            {/* Download All Stations Button */}
-            {stationsWithData.length > 1 && (
-              <button
-                type="button"
-                onClick={handleExportAllStationsPdf}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer animate-in fade-in"
-                title={`一鍵下載所有 ${stationsWithData.length} 個站點的 A4 PDF 報告 (包含完整簽名、自動縮成一站一頁)`}
-              >
-                <Download className="w-3.5 h-3.5 text-white" />
-                <span>下載全部 ({stationsWithData.length} 站 ‧ 一站一頁)</span>
-              </button>
-            )}
-
-            {/* Standard Template Button (用戶要求: 載入各站標準 WORK DESCRIPTION 與固定 QTY) */}
+            {/* 1重新開始 (用戶要求: 套用標準樣板更名為 1重新開始) */}
             <button
               type="button"
               onClick={handleApplyStandardTemplate}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="載入官方標準 WORK DESCRIPTION 與固定 QTY 樣板"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="1重新開始：載入各站標準 WORK DESCRIPTION 與固定 QTY 樣板"
             >
-              <FileCheck2 className="w-3.5 h-3.5 text-amber-700" />
-              <span>套用標準樣板</span>
+              <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+              <span>1重新開始</span>
             </button>
 
-            {/* Unified Clear Data Button (用戶要求: 清空本站和清空全部功能一樣, 只要其中一個按鈕就夠) */}
+            {/* 2上傳EXCEL (用戶要求: 上傳EXCEL更名為 2上傳EXCEL) */}
             <button
               type="button"
-              onClick={handleResetDefaultPdf}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="清空目前選取站點或全部站點的表格工單資料 (Clear Data)"
+              onClick={handleOpenUploadModal}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="2上傳EXCEL：上傳港鐵保養清單 Excel 檔案 (自動識別與全站分流)"
             >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>清空資料 (Clear Data)</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+              <span>2上傳EXCEL</span>
             </button>
 
             {/* Fine-Tune Toggle */}
