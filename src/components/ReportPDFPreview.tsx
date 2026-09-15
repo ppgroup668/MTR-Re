@@ -562,44 +562,46 @@ export const ReportPDFPreview: React.FC<Props> = ({
                   </td>
                 </tr>
               ) : (
-                stationGroups.map((stnGroup) => (
-                  <React.Fragment key={`station-${stnGroup.station}`}>
-                  {stnGroup.itemsWithSubs.map((itemObj, itemIndex) => {
-                    const { item, subs } = itemObj;
-                    const isFirstItemOfStation = itemIndex === 0;
+                stationGroups.map((stnGroup, stnIdx) => (
+                  <React.Fragment key={`station-${stnGroup.station}-${stnIdx}`}>
+                    {stnGroup.itemsWithSubs.map((itemObj, itemIndex) => {
+                      const { item, subs } = itemObj;
+                      const isFirstItemOfStation = itemIndex === 0;
 
-                    // Work description grouping logic: if mergeWorkDescription is true, merge consecutive rows with identical description
-                    const shouldMergeDesc = fineTuneSettings.mergeWorkDescription ?? true;
-                    let isFirstOfDescGroup = true;
-                    let descGroupRowSpan = subs.length;
+                      // Work description grouping logic: if mergeWorkDescription is true, merge consecutive rows with identical description
+                      const shouldMergeDesc = fineTuneSettings.mergeWorkDescription ?? true;
+                      let isFirstOfDescGroup = true;
+                      let descGroupRowSpan = subs.length;
 
-                    if (shouldMergeDesc) {
-                      const currentDesc = (item.workDescription || '').trim();
-                      if (
-                        itemIndex > 0 &&
-                        (stnGroup.itemsWithSubs[itemIndex - 1].item.workDescription || '').trim() === currentDesc &&
-                        currentDesc !== ''
-                      ) {
-                        isFirstOfDescGroup = false;
-                      } else if (currentDesc !== '') {
-                        for (let j = itemIndex + 1; j < stnGroup.itemsWithSubs.length; j++) {
-                          if ((stnGroup.itemsWithSubs[j].item.workDescription || '').trim() === currentDesc) {
-                            descGroupRowSpan += stnGroup.itemsWithSubs[j].subs.length;
-                          } else {
-                            break;
+                      if (shouldMergeDesc) {
+                        const currentDesc = (item.workDescription || '').trim();
+                        if (
+                          itemIndex > 0 &&
+                          (stnGroup.itemsWithSubs[itemIndex - 1].item.workDescription || '').trim() === currentDesc &&
+                          currentDesc !== ''
+                        ) {
+                          isFirstOfDescGroup = false;
+                        } else if (currentDesc !== '') {
+                          for (let j = itemIndex + 1; j < stnGroup.itemsWithSubs.length; j++) {
+                            if ((stnGroup.itemsWithSubs[j].item.workDescription || '').trim() === currentDesc) {
+                              descGroupRowSpan += stnGroup.itemsWithSubs[j].subs.length;
+                            } else {
+                              break;
+                            }
                           }
                         }
                       }
-                    }
-
-                    return subs.map((sub, subIndex) => {
-                      const isFirstSubOfItem = subIndex === 0;
 
                       return (
-                        <tr
-                          key={`${item.id}-sub-${subIndex}`}
-                          className="hover:bg-amber-50/40 transition-colors group"
-                        >
+                        <React.Fragment key={item.id || `item-${stnGroup.station}-${itemIndex}`}>
+                          {subs.map((sub, subIndex) => {
+                            const isFirstSubOfItem = subIndex === 0;
+
+                            return (
+                              <tr
+                                key={`${item.id || itemIndex}-sub-${subIndex}`}
+                                className="hover:bg-amber-50/40 transition-colors group"
+                              >
                           {/* STATION COLUMN: Vertically merged for all rows of this station */}
                           {isFirstItemOfStation && isFirstSubOfItem && (
                             <td
@@ -752,9 +754,11 @@ export const ReportPDFPreview: React.FC<Props> = ({
                               </div>
                             </td>
                           )}
-                        </tr>
-                      );
-                    });
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
                   })}
                 </React.Fragment>
               )))
